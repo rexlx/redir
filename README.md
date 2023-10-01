@@ -17,4 +17,7 @@ Usage of redir:
 # examples
 iostat 5 5000 | redir -id $(hostname)
 cat /proc/cpuinfo | redir -url 192.168.86.10:514 -size 4096
+
+# be careful with this one hehe
+tcpdump -vvv -nn not tcp port 22 | /Users/rxlx/bin/redir -id $(hostname) -size 2048
 ```
