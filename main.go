@@ -20,19 +20,23 @@ var (
 
 func main() {
 	flag.Parse()
-	err := scanAndWriteToSyslog(*size, os.Stdin)
+
+	syslog, err := syslog.Dial(*proto, *url, syslog.LOG_INFO, *id)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	defer syslog.Close()
+
+	err = scanAndWriteToSyslog(*size, os.Stdin, syslog)
 	if err != nil {
 		log.Fatalln(err)
 	}
 }
 
-func writeToSyslog(data []byte, verbose bool) error {
-	syslog, err := syslog.Dial(*proto, *url, syslog.LOG_INFO, *id)
-	if err != nil {
-		return err
-	}
-	defer syslog.Close()
-	n, err := syslog.Write(data)
+func writeToSyslog(w *syslog.Writer, data []byte, verbose bool) error {
+
+	n, err := w.Write(data)
 	if err != nil {
 		return err
 	}
@@ -42,9 +46,9 @@ func writeToSyslog(data []byte, verbose bool) error {
 	return nil
 }
 
-func scanAndWriteToSyslog(size int, reader io.Reader) error {
+func scanAndWriteToSyslog(size int, r io.Reader, w *syslog.Writer) error {
 	// Create a new bufio reader to read from stdin
-	bufReader := bufio.NewReader(reader)
+	bufReader := bufio.NewReader(r)
 
 	// Read data from stdin in 4k chunks and write it to syslog
 	for {
@@ -57,7 +61,7 @@ func scanAndWriteToSyslog(size int, reader io.Reader) error {
 			return err
 		}
 
-		err = writeToSyslog(chunk[:n], *verbose)
+		err = writeToSyslog(w, chunk[:n], *verbose)
 		if err != nil {
 			return err
 		}
