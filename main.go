@@ -12,7 +12,7 @@ import (
 
 var (
 	size    = flag.Int("size", 1024, "Size of the chunk to read from stdin")
-	url     = flag.String("url", "storage.nullferatu.com:514", "URL of the syslog server")
+	url     = flag.String("url", "127.0.0.1:514", "URL of the syslog server")
 	proto   = flag.String("proto", "udp", "Protocol to use to send the data")
 	id      = flag.String("id", "redir", "ID to use in the syslog message")
 	verbose = flag.Bool("verbose", false, "Verbose mode")
