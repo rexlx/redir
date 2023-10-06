@@ -16,21 +16,31 @@ var (
 	proto   = flag.String("proto", "udp", "Protocol to use to send the data")
 	id      = flag.String("id", "redir", "ID to use in the syslog message")
 	verbose = flag.Bool("verbose", false, "Verbose mode")
+	local   = flag.Bool("local", false, "Use local syslog")
 )
 
 func main() {
 	flag.Parse()
 
-	syslog, err := syslog.Dial(*proto, *url, syslog.LOG_INFO, *id)
-	if err != nil {
-		log.Fatalln(err)
+	if *local {
+		p := "local"
+		proto = &p
 	}
-
-	defer syslog.Close()
-
+	syslog, err := chooseWriter(*proto, *url, *id)
 	err = scanAndWriteToSyslog(*size, os.Stdin, syslog)
 	if err != nil {
 		log.Fatalln(err)
+	}
+}
+
+func chooseWriter(proto, url, id string) (*syslog.Writer, error) {
+	switch proto {
+	case "udp":
+		return syslog.Dial("udp", url, syslog.LOG_INFO, id)
+	case "tcp":
+		return syslog.Dial("tcp", url, syslog.LOG_INFO, id)
+	default:
+		return syslog.New(syslog.LOG_INFO, id)
 	}
 }
 
