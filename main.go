@@ -35,6 +35,13 @@ type SecretManager struct {
 func main() {
 	flag.Parse()
 
+	logfile := "rider.log"
+	f, err := os.OpenFile(logfile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	myLogger := log.New(f, "rider -", log.LstdFlags)
+
 	if *experimental {
 		addr, err := net.ResolveUDPAddr("udp", *url)
 		if err != nil {
@@ -50,7 +57,7 @@ func main() {
 			},
 		}
 
-		err = scanAndWriteToQUICStream(dialQUIC(*url, sm))
+		err = scanAndWriteToQUICStream(myLogger, dialQUIC(*url, sm))
 		if err != nil {
 			log.Fatalln(err)
 		}
@@ -127,11 +134,38 @@ func dialQUIC(url string, sm *SecretManager) quic.Stream {
 	return stream
 }
 
-func scanAndWriteToQUICStream(stream quic.Stream) error {
+func scanAndWriteToQUICStream(logger *log.Logger, stream quic.Stream) error {
+	logger.Println("starting")
 	bufReader := bufio.NewReader(os.Stdin)
+	// stream.SetDeadline(time.Now().Add(30 * time.Second))
+	keepAlive := time.NewTicker(10 * time.Second)
+	logChan := make(chan string)
+	killChan := make(chan bool)
 
+	go func() {
+		for {
+			select {
+			case <-keepAlive.C:
+				logger.Println("sending heartbeat")
+				_, err := stream.Write([]byte("|beat|"))
+				if err != nil {
+					logger.Fatalln(err)
+				}
+			case val := <-logChan:
+				logger.Println("sending log")
+				_, err := stream.Write([]byte(val))
+				if err != nil {
+					logger.Fatalln(err)
+				}
+			case <-killChan:
+				logger.Println("killing")
+				return
+			}
+		}
+	}()
 	for {
-		chunk := make([]byte, 4096)
+		logger.Println("reading")
+		chunk := make([]byte, *size)
 
 		n, err := bufReader.Read(chunk)
 		if err == io.EOF {
@@ -141,14 +175,11 @@ func scanAndWriteToQUICStream(stream quic.Stream) error {
 		if err != nil {
 			return err
 		}
-
-		_, err = stream.Write(chunk[:n])
-
-		if err != nil {
-			return err
-		}
+		logChan <- string(chunk[:n])
 	}
-
+	keepAlive.Stop()
+	killChan <- true
+	log.Println("done")
 	return nil
 }
 
